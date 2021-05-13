@@ -381,6 +381,7 @@ let primitive9 = primitive "9" tint 9;;
 let primitive20 = primitive "ifty" tint 20;;
 let primitive_addition = primitive "+" (tint @> tint @> tint) (fun x y -> x + y);;
 let primitive_increment = primitive "incr" (tint @> tint) (fun x -> 1+x);;
+let primitive_increment2 = primitive "incr2" (tint @> tint) (fun x -> 2+x);;
 let primitive_decrement = primitive "decr" (tint @> tint) (fun x -> x - 1);;
 let primitive_subtraction = primitive "-" (tint @> tint @> tint) (-);;
 let primitive_negation = primitive "negate" (tint @> tint) (fun x -> 0-x);;
@@ -755,6 +756,21 @@ let is_recursion_primitive = function
   | Primitive(_,"fix2",_) -> true
   | _ -> false
 
+(* nat arith *)
+let primitive_succ = primitive "s" (tint @> tint) (fun x -> 1+x);;
+let rec nat_rec base f n =
+  match n with
+  | 0 -> base
+  | _ -> 
+    if n <= 100 then
+      f (n-1) (nat_rec base f (n-1))
+    else
+      raise (RecursionDepthExceeded(100));;
+    (* let result = f (n-1) (nat_rec base f (n-1)) in
+    if (result >= 0 && result <= 2500) then
+      result
+    else -1;; *)
+let primitive_rec = primitive "rec" (t0 @> (tint @> t0 @> t0) @> tint @> t0) (nat_rec);;
 
 let program_parser : program parsing =
   let token = token_parser (fun c -> Char.is_alphanum c || List.mem ~equal:( = )
@@ -1043,3 +1059,54 @@ ignore(primitive "tree_p" (t_object_p @> t_boolean_p) (fun x -> x));;
 ignore(primitive "house_p" (t_object_p @> t_boolean_p) (fun x -> x));;
 ignore(primitive "horse_p" (t_object_p @> t_boolean_p) (fun x -> x));;
 ignore(primitive "ec_unique_p" (t_model_p @> (t_object_p @> t_boolean_p) @> t_object_p) (fun x -> x));;
+
+
+(* Simple world where one moves up and down *)
+let tunit = make_ground "unit";;
+let tstatem t = kind "statem" [t];;
+let primitive_readx = primitive "readx" (tstatem tint) (fun (x, y) -> ((x, y), x));;
+let primitive_ready = primitive "ready" (tstatem tint) (fun (x, y) -> ((x, y), y));;
+
+let primitive_decrx = primitive "decrx" (tstatem tunit) (fun (x, y) -> ((x-1, y), ()));;
+let primitive_incrx = primitive "incrx" (tstatem tunit) (fun (x, y) -> ((x+1, y), ()));;
+let primitive_decry = primitive "decry" (tstatem tunit) (fun (x, y) -> ((x, y-1), ()));;
+let primitive_incry = primitive "incry" (tstatem tunit) (fun (x, y) -> ((x, y+1), ()));;
+
+let primitive_gt0 = primitive "gt0" (tint @> tboolean) (fun (a : int) -> a > 0);;
+let primitive_lt0 = primitive "lt0" (tint @> tboolean) (fun (a : int) -> a < 0);;
+let primitive_abs = primitive "abs" (tint @> tint) (fun s -> Int.abs s);;
+
+let primitive_knight0 = primitive "knight0" (tstatem tunit) (fun (x, y) -> ((x+2, y+1), ()));;
+let primitive_knight1 = primitive "knight1" (tstatem tunit) (fun (x, y) -> ((x+1, y+2), ()));;
+let primitive_knight2 = primitive "knight2" (tstatem tunit) (fun (x, y) -> ((x-1, y+2), ()));;
+let primitive_knight3 = primitive "knight3" (tstatem tunit) (fun (x, y) -> ((x-2, y+1), ()));;
+let primitive_knight4 = primitive "knight4" (tstatem tunit) (fun (x, y) -> ((x-2, y-1), ()));;
+let primitive_knight5 = primitive "knight5" (tstatem tunit) (fun (x, y) -> ((x-1, y-2), ()));;
+let primitive_knight6 = primitive "knight6" (tstatem tunit) (fun (x, y) -> ((x+1, y-2), ()));;
+let primitive_knight7 = primitive "knight7" (tstatem tunit) (fun (x, y) -> ((x+2, y-1), ()));;
+
+let primitive_mnop = primitive "mnop" (tstatem tunit) (fun s -> (s, ()));;
+
+let primitive_mbind = primitive "mbind" (tstatem t0 @> (t0 @> tstatem t1)  @> tstatem t1) 
+  (fun f g state0 -> 
+    let (state1, result1) = (f state0) in
+    g result1 state1);;
+let primitive_mrepeat = primitive "mrepeat" (tint @> tstatem tunit @> tstatem tunit) 
+  (fun i m s -> List.fold_right (0 -- (i-1)) ~f:(fun _ p -> m (fst p)) ~init:(s, ()));;
+let primitive_mrun = primitive "mrun" (tstatem t0 @> tlist tint @> tlist tint)
+  (fun m l -> match l with
+  | [x;y] -> let (x1, y1) = fst (m (x, y)) in [x1;y1]
+  | _ -> []
+  );;
+
+(*let test_grid_world () =
+  let 3 = parse_program "(lambda ((mrun decrx) $0))" |> get_some in
+  evaluate [] e [1;0] |> List.map ~f:Int.to_string |> String.concat ~sep:"; " |> Printf.printf "%s\n"
+;;
+let test_grid_world () =
+  let e = parse_program "(lambda ((mrun decrx) $0))" |> get_some in
+  evaluate [] e 1 |> Int.to_string |> Printf.printf "%s\n"
+;;
+Printf.printf "JRUTE_TESTING\n";;
+test_grid_world ();;
+*)
